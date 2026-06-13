@@ -116,12 +116,14 @@ Please generate a report in Markdown format with the following structure:
 ## 1. UX Issues
 
 For each issue, use this format:
-### [Severity Emoji] [Severity]: [Issue Title]
+### [Severity]: [Issue Title]
 **Severity:** [Critical/Major/Minor]
 **Description:** [Detailed description of the issue]
 **Recommendation:** [Specific actionable fix with code example if applicable]
 **Effort:** [15 minutes / 30 minutes / 1 hour / 2-4 hours / 1 day]
 **Priority:** [Fix immediately / Fix within 1 week / Fix when convenient]
+
+Do not use emojis in any field. Use plain text labels only. Be concise and avoid filler words.
 
 List at least 3 UX issues.
 

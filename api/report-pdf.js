@@ -78,8 +78,12 @@ export default async function handler(req, res) {
 
     doc.moveDown(3);
 
-    // Parse and render report content
-    const reportText = parsed.fullReport;
+    // Parse and render report content (clean LLM artifacts first)
+    const reportText = parsed.fullReport
+      .replace(/!\s*'+/g, '!')          // "Now !'" -> "Now!"
+      .replace(/'\s*\}/g, '}')          // stray quotes before }
+      .replace(/\u{1F300}-\u{1FAFF}|\u{2600}-\u{27BF}/gu, '');  // strip emoji
+
     const lines = reportText.split('\n');
 
     for (const line of lines) {
