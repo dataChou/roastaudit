@@ -12,12 +12,25 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert';
 
-const BASE_URL = process.env.VERCEL_URL || 'https://roastaudit.vercel.app';
+const BASE_URL = process.env.BASE_URL || process.env.VERCEL_URL || 'https://roastaudit.vercel.app';
 let reportId = null;
 let lighthouseData = null;
 
 before(async () => {
   console.log(`\n=== Layer 3 E2E: testing ${BASE_URL} ===\n`);
+
+  // Health check: verify BASE_URL is reachable (5s timeout)
+  try {
+    const res = await fetch(BASE_URL + '/', {
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      assert.fail('BASE_URL unreachable: ' + BASE_URL + ', status: ' + res.status);
+    }
+    console.log('  ✓ Health check passed (status: ' + res.status + ')');
+  } catch (err) {
+    assert.fail('BASE_URL unreachable: ' + BASE_URL + ', error: ' + err.message);
+  }
 });
 
 test('Step 1: POST /api/audit returns 200 with reportId + lighthouse', async () => {
@@ -49,8 +62,7 @@ test('Step 1: POST /api/audit returns 200 with reportId + lighthouse', async () 
 
 test('Step 2: GET /api/report-pdf returns 403 before unlock', async () => {
   if (!reportId) {
-    console.log('  ⏭ Skipped (Step 1 failed)');
-    return;
+    assert.fail('Step 1 must pass first. reportId is null.');
   }
 
   const res = await fetch(`${BASE_URL}/api/report-pdf?reportId=${reportId}`);
@@ -60,8 +72,7 @@ test('Step 2: GET /api/report-pdf returns 403 before unlock', async () => {
 
 test('Step 3: POST /api/checkout (demo) unlocks report', async () => {
   if (!reportId) {
-    console.log('  ⏭ Skipped (Step 1 failed)');
-    return;
+    assert.fail('Step 1 must pass first. reportId is null.');
   }
 
   const res = await fetch(`${BASE_URL}/api/checkout`, {
@@ -79,8 +90,7 @@ test('Step 3: POST /api/checkout (demo) unlocks report', async () => {
 
 test('Step 4: GET /api/report-pdf returns 200 + PDF after unlock', async () => {
   if (!reportId) {
-    console.log('  ⏭ Skipped (Step 1 failed)');
-    return;
+    assert.fail('Step 1 must pass first. reportId is null.');
   }
 
   const res = await fetch(`${BASE_URL}/api/report-pdf?reportId=${reportId}`);
@@ -100,8 +110,7 @@ test('Step 4: GET /api/report-pdf returns 200 + PDF after unlock', async () => {
 
 test('Gate 3.5 verification: Lighthouse data persisted in full report', async () => {
   if (!reportId) {
-    console.log('  ⏭ Skipped');
-    return;
+    assert.fail('Step 1 must pass first. reportId is null.');
   }
 
   // Re-fetch via /api/report to confirm Lighthouse data is in stored report
