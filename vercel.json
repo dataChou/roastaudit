@@ -7,14 +7,6 @@
   },
   "rewrites": [
     {
-      "source": "/api/report/:id/pdf",
-      "destination": "/api/report-pdf?id=:id"
-    },
-    {
-      "source": "/api/report/:id",
-      "destination": "/api/report?id=:id"
-    },
-    {
       "source": "/r/:slug",
       "destination": "/api/report?slug=:slug"
     }
