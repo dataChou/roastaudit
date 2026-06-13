@@ -1,0 +1,19 @@
+{
+  "name": "roastaudit",
+  "version": "1.0.0",
+  "description": "AI-powered website audit tool — UX + SEO + CRO in 2 minutes. Pay-per-use, no subscription.",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@mendable/firecrawl-js": "^1.0.0",
+    "@lemonsqueezy/lemonsqueezy.js": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "vercel": "^39.0.0"
+  }
+}

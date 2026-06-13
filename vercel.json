@@ -1,0 +1,41 @@
+{
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/report/:id/pdf",
+      "destination": "/api/report-pdf?id=:id"
+    },
+    {
+      "source": "/api/report/:id",
+      "destination": "/api/report?id=:id"
+    },
+    {
+      "source": "/r/:slug",
+      "destination": "/api/report?slug=:slug"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    }
+  ]
+}
