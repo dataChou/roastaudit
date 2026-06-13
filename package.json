@@ -1,16 +1,14 @@
 {
   "name": "roastaudit",
   "version": "1.0.0",
-  "description": "AI Website Audit Tool",
+  "description": "AI Website Audit Tool — DeepSeek + Jina + Upstash",
   "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "@mendable/firecrawl-js": "^1.5.0",
-    "@vercel/kv": "^3.0.0",
+    "openai": "^4.77.0",
     "pdfkit": "^0.17.1"
   }
 }
