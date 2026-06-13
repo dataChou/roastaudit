@@ -197,13 +197,17 @@
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to create checkout');
+          throw new Error(data.error || 'Failed to process payment');
         }
 
-        // Redirect to LemonSqueezy checkout
-        const successUrl = window.location.origin + '?reportId=' + currentReportId + '&purchased=true';
-        const checkoutUrl = data.checkoutUrl + '&success_url=' + encodeURIComponent(successUrl);
-        window.location.href = checkoutUrl;
+        // DEMO MODE: backend marks as paid; reload report to get full content
+        if (data.unlocked) {
+          await unlockReport(currentReportId);
+        } else if (data.checkoutUrl) {
+          // Real payment flow (future)
+          const successUrl = window.location.origin + '?reportId=' + currentReportId + '&purchased=true';
+          window.location.href = data.checkoutUrl + '&success_url=' + encodeURIComponent(successUrl);
+        }
 
       } catch (err) {
         alert('Payment error: ' + err.message);

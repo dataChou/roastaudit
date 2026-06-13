@@ -1,23 +1,29 @@
-// GET /api/report-pdf?reportId=xxx — Generate PDF report
+// GET /api/report-pdf?reportId=xxx — Generate PDF report (Upstash)
 
-// Helper: Get data (KV or fallback to global)
-async function getReport(reportId) {
-  if (process.env.KV_URL) {
-    try {
-      const { kv } = await import('@vercel/kv');
-      const data = await kv.get(`report:${reportId}`);
-      return data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-    } catch (err) {
-      console.warn('KV get failed, falling back to memory:', err.message);
-    }
-  }
-
-  // Fallback to process memory
-  global.reports = global.reports || {};
-  return global.reports[reportId] || null;
+async function upstash(command, args = []) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const body = JSON.stringify([command, ...args]);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+    signal: AbortSignal.timeout(5000),
+  });
+  return res.json();
 }
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   const reportId = req.query.reportId;
 
   if (!reportId) {
@@ -25,13 +31,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const reportData = await getReport(reportId);
+    const result = await upstash('GET', [`report:${reportId}`]);
 
-    if (!reportData) {
-      return res.status(404).json({ error: 'Report not found' });
+    if (!result || result.error || !result.result) {
+      return res.status(404).json({ error: 'Report not found or expired' });
     }
 
-    const parsed = typeof reportData === 'string' ? JSON.parse(reportData) : reportData;
+    const parsed = JSON.parse(result.result);
 
     if (!parsed.paid) {
       return res.status(403).json({ error: 'Report not paid' });

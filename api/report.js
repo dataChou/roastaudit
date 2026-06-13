@@ -1,20 +1,20 @@
-// GET /api/report?id=xxx — Get report data
+// GET /api/report?id=xxx — Get report data (Upstash)
 
-// Helper: Get data (KV or fallback to global)
-async function getReport(reportId) {
-  if (process.env.KV_URL) {
-    try {
-      const { kv } = await import('@vercel/kv');
-      const data = await kv.get(`report:${reportId}`);
-      return data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-    } catch (err) {
-      console.warn('KV get failed, falling back to memory:', err.message);
-    }
-  }
-
-  // Fallback to process memory
-  global.reports = global.reports || {};
-  return global.reports[reportId] || null;
+async function upstash(command, args = []) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const body = JSON.stringify([command, ...args]);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+    signal: AbortSignal.timeout(5000),
+  });
+  return res.json();
 }
 
 export default async function handler(req, res) {
@@ -26,21 +26,19 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const reportId = req.query.id;
-
   if (!reportId) {
     return res.status(400).json({ error: 'Missing report ID' });
   }
 
   try {
-    const reportData = await getReport(reportId);
+    const result = await upstash('GET', [`report:${reportId}`]);
 
-    if (!reportData) {
-      return res.status(404).json({ error: 'Report not found' });
+    if (!result || result.error || !result.result) {
+      return res.status(404).json({ error: 'Report not found or expired' });
     }
 
-    const parsed = typeof reportData === 'string' ? JSON.parse(reportData) : reportData;
+    const parsed = JSON.parse(result.result);
 
-    // Return data based on payment status
     const response = {
       reportId,
       url: parsed.url,
@@ -49,7 +47,6 @@ export default async function handler(req, res) {
       screenshotUrl: parsed.screenshotUrl || null,
     };
 
-    // Only return full report if paid
     if (parsed.paid) {
       response.fullReport = parsed.fullReport;
     }
