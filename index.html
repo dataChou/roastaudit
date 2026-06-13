@@ -87,6 +87,21 @@
           </div>
         </div>
 
+        <!-- Performance (Lighthouse) — shown in summary -->
+        <div id="performance-summary" class="hidden bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-purple-800 mb-1">⚡ Lighthouse Performance (Mobile)</p>
+              <p class="text-3xl font-bold" id="performance-score">--</p>
+            </div>
+            <div class="text-right text-sm text-purple-700">
+              <p>LCP: <span id="lcp-value" class="font-semibold">--</span></p>
+              <p>CLS: <span id="cls-value" class="font-semibold">--</span></p>
+              <p>FCP: <span id="fcp-value" class="font-semibold">--</span></p>
+            </div>
+          </div>
+        </div>
+
         <div id="paywall" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
           <p class="text-yellow-800 font-medium mb-2">🔒 Full report locked</p>
           <p class="text-yellow-700 text-sm mb-3">You're seeing a preview. Unlock the full report for $0.99 (or 3 audits for $1.99)</p>
@@ -164,6 +179,25 @@
         document.getElementById('report-section').classList.remove('hidden');
         document.getElementById('report-url').textContent = url;
         document.getElementById('report-url').href = url;
+
+        // Show Lighthouse performance if available (NEW)
+        if (data.lighthouse && data.lighthouse.performanceScore !== undefined) {
+          const score = data.lighthouse.performanceScore;
+          const perfSection = document.getElementById('performance-summary');
+          const scoreEl = document.getElementById('performance-score');
+
+          // Color code the score
+          let colorClass = 'text-red-600';
+          if (score >= 90) colorClass = 'text-green-600';
+          else if (score >= 50) colorClass = 'text-yellow-600';
+          scoreEl.className = 'text-3xl font-bold ' + colorClass;
+          scoreEl.textContent = score + '/100';
+
+          document.getElementById('lcp-value').textContent = data.lighthouse.largestContentfulPaint || '--';
+          document.getElementById('cls-value').textContent = data.lighthouse.cumulativeLayoutShift || '--';
+          document.getElementById('fcp-value').textContent = data.lighthouse.firstContentfulPaint || '--';
+          perfSection.classList.remove('hidden');
+        }
 
         // Show screenshot if available
         if (data.screenshotUrl) {

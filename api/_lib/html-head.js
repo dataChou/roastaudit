@@ -1,0 +1,55 @@
+// api/_lib/html-head.js — Direct HTML head extractor
+// Must-7 (Gate 3.5, 2026-06-13)
+
+export async function fetchHtmlHead(url) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'RoastAudit-Bot/1.0' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+
+    // Read only first 50KB (head is usually within 10-20KB)
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let html = '';
+    let bytesRead = 0;
+    const MAX_BYTES = 50 * 1024;
+
+    while (bytesRead < MAX_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      bytesRead += value.length;
+      // Stop after </head>
+      if (html.includes('</head>')) break;
+    }
+    try { reader.cancel(); } catch (e) {}
+
+    // Extract head section
+    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+    const head = headMatch ? headMatch[1] : html;
+
+    // Parse key tags
+    const title = (head.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1]?.trim() || null;
+    const metaDesc = (head.match(/<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i) || [])[1] || null;
+    const ogTitle = (head.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']*)["']/i) || [])[1] || null;
+    const ogDesc = (head.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']*)["']/i) || [])[1] || null;
+    const ogImage = (head.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i) || [])[1] || null;
+    const canonical = (head.match(/<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i) || [])[1] || null;
+    const h1 = (html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1]?.replace(/<[^>]+>/g, '').trim() || null;
+
+    return {
+      title,
+      metaDescription: metaDesc,
+      ogTitle,
+      ogDescription: ogDesc,
+      ogImage,
+      canonical,
+      h1,
+    };
+  } catch (err) {
+    console.warn('HTML head fetch failed:', err.message);
+    return null;
+  }
+}

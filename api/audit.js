@@ -1,5 +1,7 @@
-// POST /api/audit — Generate website audit report (DeepSeek + Jina + Upstash)
+// POST /api/audit — Generate website audit report (DeepSeek + Jina + Upstash + Lighthouse + HTML head)
 import OpenAI from 'openai';
+import { fetchLighthouse } from './_lib/lighthouse.js';
+import { fetchHtmlHead } from './_lib/html-head.js';
 
 const openai = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
@@ -36,15 +38,6 @@ async function storeReport(reportId, data) {
   }
 }
 
-async function getReport(reportId) {
-  const result = await upstash('GET', [`report:${reportId}`]);
-  if (!result || result.error) {
-    console.warn('Upstash get failed:', result?.error);
-    return null;
-  }
-  return result.result; // Upstash REST returns { result: "value" }
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -57,59 +50,108 @@ export default async function handler(req, res) {
   if (!url) return res.status(400).json({ error: 'Missing URL' });
 
   try {
-    // 1. Fetch website content via Jina Reader
-    let pageText = '';
-    let screenshotUrl = null;
+    // ====== Step 1-3: Parallel data fetch (Gate 3.5: +Lighthouse +HTML head) ======
+    const [jinaResult, lighthouseResult, htmlHeadResult] = await Promise.allSettled([
+      // (1) Jina Reader: Markdown
+      (async () => {
+        try {
+          const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+            headers: {
+              'Authorization': `Bearer ${process.env.JINA_API_KEY || ''}`,
+              'Accept': 'text/markdown',
+            },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!jinaRes.ok) return null;
+          return await jinaRes.text();
+        } catch (e) {
+          console.warn('Jina failed:', e.message);
+          return null;
+        }
+      })(),
+      // (2) Lighthouse (NEW Must-6)
+      fetchLighthouse(url),
+      // (3) HTML head (NEW Must-7)
+      fetchHtmlHead(url),
+    ]);
 
-    try {
-      const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-        headers: {
-          'Authorization': `Bearer ${process.env.JINA_API_KEY || ''}`,
-          'Accept': 'text/markdown',
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (jinaRes.ok) {
-        pageText = await jinaRes.text();
-      }
-    } catch (jinaErr) {
-      console.warn('Jina fetch failed:', jinaErr.message);
-    }
+    const pageText = jinaResult.status === 'fulfilled' ? jinaResult.value : null;
+    const lighthouse = lighthouseResult.status === 'fulfilled' ? lighthouseResult.value : null;
+    const htmlHead = htmlHeadResult.status === 'fulfilled' ? htmlHeadResult.value : null;
 
-    // 2. Fallback: direct HTML fetch
-    if (!pageText || pageText.length < 200) {
+    // Fallback: direct HTML fetch if Jina failed
+    let finalPageText = pageText;
+    if (!finalPageText || finalPageText.length < 200) {
       try {
         const fetchRes = await fetch(url, {
           headers: { 'User-Agent': 'RoastAudit Bot/1.0' },
           signal: AbortSignal.timeout(15000),
         });
         const html = await fetchRes.text();
-        pageText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 50000);
+        finalPageText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 50000);
       } catch (fetchErr) {
         console.warn('Direct fetch failed:', fetchErr.message);
       }
     }
 
-    if (!pageText || pageText.length < 100) {
+    if (!finalPageText || finalPageText.length < 100) {
       return res.status(400).json({
         error: 'Unable to fetch website content. The site may be blocking crawlers or unavailable.',
       });
     }
 
-    // 3. Call DeepSeek to generate audit report
+    // ====== Step 4: Call DeepSeek with enriched context ======
     const domain = url.replace(/https?:\/\//, '').replace(/\/.*/, '');
-    const prompt = `You are a senior UX/SEO/CRO auditor. Analyze the following website content and generate a structured audit report.
+
+    // Build REAL HTML HEAD data block (NEW Must-7)
+    const htmlHeadBlock = htmlHead ? `
+REAL HTML HEAD DATA (confirmed by direct fetch — use as ground truth, do NOT guess):
+- Title tag: ${htmlHead.title || '(missing)'}
+- Meta description: ${htmlHead.metaDescription || '(missing)'}
+- OG title: ${htmlHead.ogTitle || '(missing)'}
+- OG description: ${htmlHead.ogDescription || '(missing)'}
+- Canonical URL: ${htmlHead.canonical || '(missing)'}
+- First H1: ${htmlHead.h1 || '(missing)'}
+- Title length: ${htmlHead.title ? htmlHead.title.length + ' chars' : 'N/A'}
+- Meta description length: ${htmlHead.metaDescription ? htmlHead.metaDescription.length + ' chars' : 'N/A'}
+` : `
+REAL HTML HEAD DATA: (unavailable — fetch failed, infer from markdown content)
+`;
+
+    // Build Lighthouse data block (NEW Must-6)
+    const lighthouseBlock = lighthouse ? `
+LIGHTHOUSE PERFORMANCE DATA (Mobile, from Google PageSpeed Insights):
+- Performance Score: ${lighthouse.performanceScore}/100
+- First Contentful Paint: ${lighthouse.firstContentfulPaint}
+- Largest Contentful Paint: ${lighthouse.largestContentfulPaint}
+- Cumulative Layout Shift: ${lighthouse.cumulativeLayoutShift}
+- Total Blocking Time: ${lighthouse.totalBlockingTime}
+
+Industry averages: Performance ~65, LCP < 2.5s, CLS < 0.1
+` : `
+LIGHTHOUSE PERFORMANCE DATA: (unavailable — API failed or timed out)
+`;
+
+    const prompt = `You are a senior UX/SEO/CRO auditor. Analyze the following website and generate a structured audit report.
 
 Website URL: ${url}
-
-Website Content (Markdown):
-${pageText.substring(0, 60000)}
+${htmlHeadBlock}${lighthouseBlock}
+Website Content (Markdown from Jina Reader):
+${finalPageText.substring(0, 60000)}
 
 Please generate a report in Markdown format with the following structure:
 
 # Audit Report for ${domain}
 
 ## Overall Score: [0-100]/100
+
+## Performance (from Lighthouse)
+- Performance Score: [X]/100
+- FCP: [X]s
+- LCP: [X]s
+- CLS: [X]
+- TBT: [X]ms
+- One-line takeaway: [Specific fix or "no data available"]
 
 ---
 
@@ -131,12 +173,13 @@ List at least 3 UX issues.
 
 ## 2. SEO Problems
 
+For SEO title and meta description issues, reference the REAL HTML HEAD DATA above as ground truth. Do not guess values from the markdown content.
 Same format as above. List at least 3 SEO issues covering:
-- Title tags
-- Meta descriptions
-- Heading structure
-- Alt tags
-- Page speed factors visible in code
+- Title tag (length, keyword, branding)
+- Meta description (length, CTA, unique value)
+- Heading structure (H1 count, hierarchy)
+- Image alt tags (sample 2-3 visible images)
+- Canonical URL (correct, missing, or wrong)
 
 ---
 
@@ -161,7 +204,7 @@ Same format as above. List at least 3 CRO issues covering:
 
 ---
 
-**Important:** Make recommendations specific and actionable. Include code examples. Don't give generic advice like "improve SEO" — be specific about what to change and how.`;
+**Important:** Make recommendations specific and actionable. Include code examples. Don't give generic advice like "improve SEO" — be specific about what to change and how. Use the REAL HTML HEAD DATA when discussing SEO issues.`;
 
     const completion = await openai.chat.completions.create({
       model: 'deepseek-chat',
@@ -172,14 +215,19 @@ Same format as above. List at least 3 CRO issues covering:
 
     const fullReport = completion.choices[0].message.content;
 
-    // 4. Generate summary
-    const summaryCompletion = await openai.chat.completions.create({
-      model: 'deepseek-chat',
-      max_tokens: 500,
-      temperature: 0.3,
-      messages: [{
-        role: 'user',
-        content: `Based on the following full audit report, generate a concise summary (max 300 words) that includes:
+    // ====== Step 5: Generate summary (with Lighthouse data) ======
+    const summaryPrompt = lighthouse
+      ? `Based on the following full audit report, generate a concise summary (max 300 words) that includes:
+1. Overall score
+2. Lighthouse Performance score (${lighthouse.performanceScore}/100) + LCP (${lighthouse.largestContentfulPaint})
+3. Top 3 critical issues (one sentence each)
+4. A teaser that makes them want to unlock the full report.
+
+Format as Markdown. Do not include detailed fixes in the summary.
+
+Full report:
+${fullReport}`
+      : `Based on the following full audit report, generate a concise summary (max 300 words) that includes:
 1. Overall score
 2. Top 3 critical issues (one sentence each)
 3. A teaser that makes them want to unlock the full report.
@@ -187,24 +235,35 @@ Same format as above. List at least 3 CRO issues covering:
 Format as Markdown. Do not include detailed fixes in the summary.
 
 Full report:
-${fullReport}`,
-      }],
+${fullReport}`;
+
+    const summaryCompletion = await openai.chat.completions.create({
+      model: 'deepseek-chat',
+      max_tokens: 500,
+      temperature: 0.3,
+      messages: [{ role: 'user', content: summaryPrompt }],
     });
 
     const summary = summaryCompletion.choices[0].message.content;
 
-    // 5. Store report in Upstash
+    // ====== Step 6: Store report ======
     const reportId = 'audit_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
     await storeReport(reportId, {
       url,
       summary,
       fullReport,
-      screenshotUrl,
+      htmlHead,        // NEW
+      lighthouse,      // NEW
       createdAt: new Date().toISOString(),
       paid: false,
     });
 
-    return res.status(200).json({ reportId, summary, screenshotUrl });
+    return res.status(200).json({
+      reportId,
+      summary,
+      lighthouse,  // NEW: return to frontend
+      htmlHead,    // NEW: return to frontend
+    });
 
   } catch (err) {
     console.error('Audit error:', err);

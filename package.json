@@ -1,11 +1,15 @@
 {
   "name": "roastaudit",
   "version": "1.0.0",
-  "description": "AI Website Audit Tool — DeepSeek + Jina + Upstash",
+  "type": "module",
+  "description": "AI Website Audit Tool — DeepSeek + Jina + Upstash + Lighthouse + HTML head",
   "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
-    "deploy": "vercel --prod"
+    "deploy": "vercel --prod",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:integration": "node --test tests/integration/*.test.js",
+    "demo-test": "node --test tests/integration/demo-flow.test.js"
   },
   "dependencies": {
     "openai": "^4.77.0",
