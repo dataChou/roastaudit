@@ -1,13 +1,37 @@
-// api/_lib/demo-mode.js — Demo mode: auto-detect missing DEEPSEEK_API_KEY, return mock data
-// Spec-002 (2026-06-14) — 方案 A: 自动检测 + 生产硬拒绝
-// Verdict-003 fix (2026-06-14) — 加内存存储供 demo 模式共享数据
+// api/_lib/demo-mode.js — Demo mode: explicit opt-in + production hard block
+// Spec-003 (2026-06-14) — 显式 opt-in + 生产环境零容忍
 
 /**
- * Returns true when DEEPSEEK_API_KEY is unset, empty, or "dummy".
- * In production (NODE_ENV=production), callers MUST check this and refuse demo mode.
+ * Returns true when demo mode should be active.
+ *
+ * Two ways to enter demo mode:
+ *   (A) Explicit opt-in:  DEMO_MODE=true   (works in any env, including production)
+ *   (B) Implicit fallback: DEEPSEEK_API_KEY missing/empty/"dummy"  AND  not in production
+ *
+ * Production safety: explicit opt-in (A) is checked FIRST so that local
+ * debugging is easy, but the audit/checkout/report/report-pdf handlers
+ * MUST refuse demo mode when NODE_ENV=production (defense in depth).
  */
 export function isDemoMode() {
+  // (A) Explicit opt-in: always wins
+  if (process.env.DEMO_MODE === 'true') return true;
+  // (B) Implicit fallback: only when key missing AND not in production
+  if (process.env.NODE_ENV === 'production') return false;
   return !process.env.DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY === 'dummy';
+}
+
+/**
+ * Returns an error response object if demo mode is active in production.
+ * Returns null when safe to proceed.
+ *
+ * Defense in depth: even if isDemoMode() returns true via explicit opt-in,
+ * production callers MUST refuse.
+ */
+export function productionDemoBlockReason() {
+  if (process.env.NODE_ENV === 'production' && isDemoMode()) {
+    return 'DEMO mode is not allowed in production. Set DEEPSEEK_API_KEY (or unset DEMO_MODE).';
+  }
+  return null;
 }
 
 /**

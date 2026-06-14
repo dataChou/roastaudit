@@ -1,5 +1,5 @@
 // GET /api/report?id=xxx — Get report data (Upstash + demo memory store fallback)
-import { readDemoReport } from './_lib/demo-mode.js';
+import { readDemoReport, productionDemoBlockReason } from './_lib/demo-mode.js';
 
 async function upstash(command, args = []) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -25,6 +25,13 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  // ===== Production safety: refuse demo mode in production =====
+  const blockReason = productionDemoBlockReason();
+  if (blockReason) {
+    console.error(`FATAL [${req.url}]: ${blockReason}`);
+    return res.status(500).json({ error: 'Service configuration error. Please contact support.' });
+  }
 
   const reportId = req.query.id;
   if (!reportId) {

@@ -138,8 +138,14 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
+  const { isDemoMode } = await import('./api/_lib/demo-mode.js');
+  const mode = isDemoMode()
+    ? '🔶 DEMO (mock data, no external APIs)'
+    : '✅ PRODUCTION (real DeepSeek + Jina + Upstash)';
   console.log(`✓ Local test server running at http://localhost:${PORT}`);
+  console.log(`  Mode: ${mode}`);
+  console.log(`  Env:  NODE_ENV=${process.env.NODE_ENV || '(unset)'}  DEEPSEEK_API_KEY=${process.env.DEEPSEEK_API_KEY ? '***set***' : '(missing)'}  DEMO_MODE=${process.env.DEMO_MODE || '(unset)'}`);
   console.log(`  Routes:`);
   console.log(`  POST /api/audit`);
   console.log(`  POST /api/checkout`);

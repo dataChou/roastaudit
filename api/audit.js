@@ -2,7 +2,7 @@
 import OpenAI from 'openai';
 import { fetchLighthouse } from './_lib/lighthouse.js';
 import { fetchHtmlHead } from './_lib/html-head.js';
-import { isDemoMode, generateDemoReport, generateDemoFullReport, putDemoReport } from './_lib/demo-mode.js';
+import { isDemoMode, generateDemoReport, generateDemoFullReport, putDemoReport, productionDemoBlockReason } from './_lib/demo-mode.js';
 
 // Upstash Redis REST helper
 async function upstash(command, args = []) {
@@ -41,6 +41,13 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // ===== Production safety: refuse demo mode in production =====
+  const blockReason = productionDemoBlockReason();
+  if (blockReason) {
+    console.error(`FATAL [${req.url}]: ${blockReason}`);
+    return res.status(500).json({ error: 'Service configuration error. Please contact support.' });
+  }
 
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'Missing URL' });

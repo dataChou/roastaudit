@@ -1,6 +1,6 @@
 // POST /api/checkout — Demo mode: unlock report without real payment
 // Also supports real Upstash storage when env vars present.
-import { readDemoReport, markDemoReportPaid } from './_lib/demo-mode.js';
+import { readDemoReport, markDemoReportPaid, productionDemoBlockReason } from './_lib/demo-mode.js';
 
 // Upstash Redis REST helper
 async function upstash(command, args = []) {
@@ -27,6 +27,13 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // ===== Production safety: refuse demo mode in production =====
+  const blockReason = productionDemoBlockReason();
+  if (blockReason) {
+    console.error(`FATAL [${req.url}]: ${blockReason}`);
+    return res.status(500).json({ error: 'Service configuration error. Please contact support.' });
+  }
 
   const { reportId } = req.body;
   if (!reportId) return res.status(400).json({ error: 'Missing reportId' });

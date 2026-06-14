@@ -54,17 +54,136 @@ test('isDemoMode returns false when DEEPSEEK_API_KEY is valid', async () => {
   }
 });
 
-// ===== 生产安全：isDemoMode 在生产 + 缺失时仍返回 true，由 audit.js 拒绝 =====
+// ===== 新 spec-003 case =====
 
-test('isDemoMode returns true in production when key is missing (audit.js should block)', async () => {
+test('isDemoMode: DEMO_MODE=true overrides everything (even production + missing key)', async () => {
   const originalKey = process.env.DEEPSEEK_API_KEY;
   const originalEnv = process.env.NODE_ENV;
+  const originalDemo = process.env.DEMO_MODE;
+  process.env.DEMO_MODE = 'true';
   delete process.env.DEEPSEEK_API_KEY;
   process.env.NODE_ENV = 'production';
   const { isDemoMode } = await import('../../api/_lib/demo-mode.js');
   try {
-    // isDemoMode itself does not check NODE_ENV — audit.js does
-    assert.equal(isDemoMode(), true, 'isDemoMode detects missing key even in production');
+    assert.equal(isDemoMode(), true, 'DEMO_MODE=true should force demo mode even in production');
+  } finally {
+    if (originalKey !== undefined) process.env.DEEPSEEK_API_KEY = originalKey;
+    else delete process.env.DEEPSEEK_API_KEY;
+    if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv;
+    else delete process.env.NODE_ENV;
+    if (originalDemo !== undefined) process.env.DEMO_MODE = originalDemo;
+    else delete process.env.DEMO_MODE;
+  }
+});
+
+test('isDemoMode: DEMO_MODE=true overrides everything (even production + valid key)', async () => {
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalEnv = process.env.NODE_ENV;
+  const originalDemo = process.env.DEMO_MODE;
+  process.env.DEMO_MODE = 'true';
+  process.env.DEEPSEEK_API_KEY = 'sk-real-key';
+  process.env.NODE_ENV = 'production';
+  const { isDemoMode } = await import('../../api/_lib/demo-mode.js');
+  try {
+    assert.equal(isDemoMode(), true, 'DEMO_MODE=true should force demo mode even with valid key');
+  } finally {
+    if (originalKey !== undefined) process.env.DEEPSEEK_API_KEY = originalKey;
+    else delete process.env.DEEPSEEK_API_KEY;
+    if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv;
+    else delete process.env.NODE_ENV;
+    if (originalDemo !== undefined) process.env.DEMO_MODE = originalDemo;
+    else delete process.env.DEMO_MODE;
+  }
+});
+
+test('isDemoMode: missing key + NODE_ENV=production → false (implicit fallback blocked)', async () => {
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalEnv = process.env.NODE_ENV;
+  const originalDemo = process.env.DEMO_MODE;
+  delete process.env.DEEPSEEK_API_KEY;
+  process.env.NODE_ENV = 'production';
+  delete process.env.DEMO_MODE;
+  const { isDemoMode } = await import('../../api/_lib/demo-mode.js');
+  try {
+    assert.equal(isDemoMode(), false, 'implicit fallback should be blocked in production');
+  } finally {
+    if (originalKey !== undefined) process.env.DEEPSEEK_API_KEY = originalKey;
+    else delete process.env.DEEPSEEK_API_KEY;
+    if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv;
+    else delete process.env.NODE_ENV;
+    if (originalDemo !== undefined) process.env.DEMO_MODE = originalDemo;
+    else delete process.env.DEMO_MODE;
+  }
+});
+
+test('isDemoMode: missing key + NODE_ENV=development → true (implicit fallback allowed)', async () => {
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalEnv = process.env.NODE_ENV;
+  const originalDemo = process.env.DEMO_MODE;
+  delete process.env.DEEPSEEK_API_KEY;
+  process.env.NODE_ENV = 'development';
+  delete process.env.DEMO_MODE;
+  const { isDemoMode } = await import('../../api/_lib/demo-mode.js');
+  try {
+    assert.equal(isDemoMode(), true, 'implicit fallback should work in non-production');
+  } finally {
+    if (originalKey !== undefined) process.env.DEEPSEEK_API_KEY = originalKey;
+    else delete process.env.DEEPSEEK_API_KEY;
+    if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv;
+    else delete process.env.NODE_ENV;
+    if (originalDemo !== undefined) process.env.DEMO_MODE = originalDemo;
+    else delete process.env.DEMO_MODE;
+  }
+});
+
+test('productionDemoBlockReason: returns string in production + demo mode (explicit opt-in)', async () => {
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalEnv = process.env.NODE_ENV;
+  const originalDemo = process.env.DEMO_MODE;
+  delete process.env.DEEPSEEK_API_KEY;
+  process.env.NODE_ENV = 'production';
+  process.env.DEMO_MODE = 'true';  // Explicit opt-in to demo mode
+  const { productionDemoBlockReason } = await import('../../api/_lib/demo-mode.js');
+  try {
+    const reason = productionDemoBlockReason();
+    assert.ok(reason, 'should return block reason in production + demo (explicit opt-in)');
+    assert.ok(reason.includes('DEMO mode'), 'reason should mention DEMO mode');
+  } finally {
+    if (originalKey !== undefined) process.env.DEEPSEEK_API_KEY = originalKey;
+    else delete process.env.DEEPSEEK_API_KEY;
+    if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv;
+    else delete process.env.NODE_ENV;
+    if (originalDemo !== undefined) process.env.DEMO_MODE = originalDemo;
+    else delete process.env.DEMO_MODE;
+  }
+});
+
+test('productionDemoBlockReason: returns null in production + real mode', async () => {
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalEnv = process.env.NODE_ENV;
+  process.env.DEEPSEEK_API_KEY = 'sk-real-key';
+  process.env.NODE_ENV = 'production';
+  const { productionDemoBlockReason } = await import('../../api/_lib/demo-mode.js');
+  try {
+    const reason = productionDemoBlockReason();
+    assert.equal(reason, null, 'should return null when not in demo mode');
+  } finally {
+    if (originalKey !== undefined) process.env.DEEPSEEK_API_KEY = originalKey;
+    else delete process.env.DEEPSEEK_API_KEY;
+    if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv;
+    else delete process.env.NODE_ENV;
+  }
+});
+
+test('productionDemoBlockReason: returns null in non-production (even with demo)', async () => {
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalEnv = process.env.NODE_ENV;
+  delete process.env.DEEPSEEK_API_KEY;
+  process.env.NODE_ENV = 'development';
+  const { productionDemoBlockReason } = await import('../../api/_lib/demo-mode.js');
+  try {
+    const reason = productionDemoBlockReason();
+    assert.equal(reason, null, 'should return null in non-production (defense in depth: isDemoMode may be true, but productionDemoBlockReason only blocks in production)');
   } finally {
     if (originalKey !== undefined) process.env.DEEPSEEK_API_KEY = originalKey;
     else delete process.env.DEEPSEEK_API_KEY;
