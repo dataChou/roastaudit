@@ -1,7 +1,18 @@
 // api/_lib/lighthouse.js — Google PageSpeed Insights (Lighthouse) fetcher
 // Must-6 (Gate 3.5, 2026-06-13)
+import { isDemoMode } from './demo-mode.js';
 
 export async function fetchLighthouse(url) {
+  // Defensive: if demo mode, return mock data (normal flow bypasses this via audit.js)
+  if (isDemoMode()) {
+    return {
+      performanceScore: 85,
+      firstContentfulPaint: '1.6 s',
+      largestContentfulPaint: '2.8 s',
+      cumulativeLayoutShift: '0.06',
+      totalBlockingTime: '180 ms',
+    };
+  }
   try {
     const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=performance`;
     const res = await fetch(psiUrl, {

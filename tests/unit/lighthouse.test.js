@@ -4,6 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 
+// Ensure demo mode is off so defensive mock in lighthouse.js doesn't interfere
+if (!process.env.DEEPSEEK_API_KEY) process.env.DEEPSEEK_API_KEY = 'sk-test-key-for-unit-tests';
+
 // Mock fetch globally
 const originalFetch = global.fetch;
 

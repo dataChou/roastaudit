@@ -2,6 +2,7 @@
 import OpenAI from 'openai';
 import { fetchLighthouse } from './_lib/lighthouse.js';
 import { fetchHtmlHead } from './_lib/html-head.js';
+import { isDemoMode, generateDemoReport } from './_lib/demo-mode.js';
 
 const openai = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
@@ -48,6 +49,30 @@ export default async function handler(req, res) {
 
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'Missing URL' });
+
+  // ====== Demo mode: bypass external APIs + DeepSeek ======
+  if (isDemoMode()) {
+    // Safety: production must never enter demo mode
+    if (process.env.NODE_ENV === 'production') {
+      console.error('FATAL: DEEPSEEK_API_KEY missing in production, refusing demo mode');
+      return res.status(500).json({
+        error: 'Service configuration error. Please contact support.',
+      });
+    }
+
+    const data = generateDemoReport(url);
+    console.log(`[DEMO] Serving mock report for ${url} (id: ${data.reportId})`);
+
+    // Optional: store mock report in Upstash (best-effort, don't block on failure)
+    try { await storeReport(data.reportId, { ...data, url, paid: false, createdAt: new Date().toISOString() }); } catch (e) { console.error('Demo Upstash store failed:', e); }
+
+    return res.status(200).json({
+      reportId: data.reportId,
+      summary: data.summary,
+      lighthouse: data.lighthouse,
+      htmlHead: data.htmlHead,
+    });
+  }
 
   try {
     // ====== Step 1-3: Parallel data fetch (Gate 3.5: +Lighthouse +HTML head) ======
