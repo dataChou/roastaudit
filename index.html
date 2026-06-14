@@ -7,6 +7,17 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+  <script>
+    // 配置（修改定价/文案请改这里）
+    const CONFIG = {
+      pricing: { single: 0.99, pack: 1.99, packN: 5 },
+      copy: {
+        pricing: `💰 $${0.99} per audit • Or ${5} audits for $${1.99} • No login required`,
+        paywall: `You're seeing a preview. Unlock the full report for $${0.99} (or ${5} audits for $${1.99})`,
+        unlockBtn: `Unlock Full Report — $0.99 <span class="text-xs text-gray-500 ml-2">(5-pack $1.99)</span>`,
+      }
+    };
+  </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="container mx-auto px-4 py-8 max-w-4xl">
@@ -18,7 +29,7 @@
     </header>
 
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 text-center">
-      <p class="text-blue-800 font-semibold">💰 $0.99 per audit • Or 5 audits for $1.99 • No login required</p>
+      <p id="pricing-text" class="text-blue-800 font-semibold"></p>
     </div>
 
     <!-- Input -->
@@ -103,12 +114,8 @@
         </div>
 
         <div id="paywall" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-          <p class="text-yellow-800 font-medium mb-2">🔒 Full report locked</p>
-          <p class="text-yellow-700 text-sm mb-3">You're seeing a preview. Unlock the full report for $0.99 (or 5 audits for $1.99)</p>
-          <button id="pay-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">
-            Unlock Full Report — $0.99
-            <span class="text-xs text-gray-500 ml-2">(5-pack $1.99)</span>
-          </button>
+          <p id="paywall-text" class="text-yellow-800 font-medium mb-2"></p>
+          <button id="pay-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition"></button>
         </div>
 
         <div id="paid-badge" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
@@ -133,6 +140,11 @@
     let isPaid = false;
 
     document.addEventListener('DOMContentLoaded', () => {
+      // 动态填充文案（从 CONFIG）
+      document.getElementById('pricing-text').innerHTML = CONFIG.copy.pricing;
+      document.getElementById('paywall-text').innerHTML = CONFIG.copy.paywall;
+      document.getElementById('pay-btn').innerHTML = CONFIG.copy.unlockBtn;
+
       document.getElementById('audit-btn').addEventListener('click', startAudit);
       document.getElementById('url-input').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') startAudit();

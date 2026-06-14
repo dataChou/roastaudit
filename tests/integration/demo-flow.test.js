@@ -147,3 +147,44 @@ test('Gate 3.5 verification: Lighthouse data persisted in full report', async ()
   console.log(`  ✓ Lighthouse data persisted: ${data.lighthouse.performanceScore}/100`);
   console.log(`  ✓ Performance section: ${data.lighthouse.largestContentfulPaint} LCP, ${data.lighthouse.cumulativeLayoutShift} CLS`);
 });
+
+test('Output quality: full report contains Lighthouse + SEO sections', async () => {
+  if (!reportId) {
+    assert.fail('Step 1 must pass first. reportId is null.');
+  }
+
+  const res = await fetch(`${BASE_URL}/api/report?id=${reportId}`);
+  assert.ok(res.ok, `GET /api/report failed: ${res.status}`);
+
+  const data = await res.json();
+  assert.ok(data.fullReport, 'Missing fullReport');
+
+  const report = data.fullReport;
+
+  // Must contain Lighthouse section (Gate 3.5)
+  assert.ok(
+    report.includes('Performance (Lighthouse Mobile)') || report.includes('## Performance'),
+    'Full report missing Lighthouse section'
+  );
+
+  // Must contain UX issues section
+  assert.ok(
+    report.includes('## 1. UX Issues') || report.includes('UX Issues'),
+    'Full report missing UX Issues section'
+  );
+
+  // Must contain SEO section
+  assert.ok(
+    report.includes('## 2. SEO Problems') || report.includes('SEO Problems'),
+    'Full report missing SEO section'
+  );
+
+  // Must NOT contain emojis in body (format rule)
+  const emojiPattern = /[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]/u;
+  const lines = report.split('\n');
+  const emojiLines = lines.filter(l => emojiPattern.test(l) && !l.includes('✅') && !l.includes('⚠️') && !l.includes('❌'));
+  assert.equal(emojiLines.length, 0, `Full report contains unexpected emojis: ${emojiLines.slice(0, 3).join('; ')}`);
+
+  console.log(`  ✓ Full report contains Lighthouse + UX + SEO sections`);
+  console.log(`  ✓ No decorative emojis in body`);
+});
