@@ -178,79 +178,105 @@ Industry averages: Performance ~65, LCP < 2.5s, CLS < 0.1
 LIGHTHOUSE PERFORMANCE DATA: (unavailable — API failed or timed out)
 `;
 
-    const prompt = `You are a senior UX/SEO/CRO auditor. Analyze the following website and generate a structured audit report.
+    const prompt = `You are a senior UX/SEO/CRO auditor. Analyze the website and output a clean, structured audit report in Markdown.
 
 Website URL: ${url}
 ${htmlHeadBlock}${lighthouseBlock}
 Website Content (Markdown from Jina Reader):
 ${finalPageText.substring(0, 60000)}
 
-Please generate a report in Markdown format with the following structure:
+===== OUTPUT FORMAT (STRICT) =====
+
+Output ONLY valid Markdown. No emojis. No decorative liness. Use plain text.
+
+Structure:
 
 # Audit Report for ${domain}
 
 ## Overall Score: [0-100]/100
+One-line verdict: [Excellent / Good / Needs work / Poor]
 
-## Performance (from Lighthouse)
-- Performance Score: [X]/100
-- FCP: [X]s
-- LCP: [X]s
-- CLS: [X]
-- TBT: [X]ms
-- One-line takeaway: [Specific fix or "no data available"]
+## Performance (Lighthouse Mobile)
+| Metric | Value | Benchmark | Status |
+|--------|-------|-----------|--------|
+| Performance Score | [X]/100 | >90 good | ✅/⚠️/❌ |
+| First Contentful Paint | [X]s | <1.8s | ✅/⚠️/❌ |
+| Largest Contentful Paint | [X]s | <2.5s | ✅/⚠️/❌ |
+| Cumulative Layout Shift | [X] | <0.1 | ✅/⚠️/❌ |
+| Total Blocking Time | [X]ms | <200ms | ✅/⚠️/❌ |
 
----
-
-## 1. UX Issues
-
-For each issue, use this format:
-### [Severity]: [Issue Title]
-**Severity:** [Critical/Major/Minor]
-**Description:** [Detailed description of the issue]
-**Recommendation:** [Specific actionable fix with code example if applicable]
-**Effort:** [15 minutes / 30 minutes / 1 hour / 2-4 hours / 1 day]
-**Priority:** [Fix immediately / Fix within 1 week / Fix when convenient]
-
-Do not use emojis in any field. Use plain text labels only. Be concise and avoid filler words.
-
-List at least 3 UX issues.
+Takeaway: [One specific sentence about what to fix first for performance]
 
 ---
 
-## 2. SEO Problems
+## 1. UX Issues (3-5 items)
 
-For SEO title and meta description issues, reference the REAL HTML HEAD DATA above as ground truth. Do not guess values from the markdown content.
-Same format as above. List at least 3 SEO issues covering:
-- Title tag (length, keyword, branding)
-- Meta description (length, CTA, unique value)
-- Heading structure (H1 count, hierarchy)
-- Image alt tags (sample 2-3 visible images)
-- Canonical URL (correct, missing, or wrong)
+### 1.1 [Severity] — [Issue Title]
+**What's wrong:** [1-2 sentence description]
+**Why it matters:** [Impact on users]
+**How to fix:** [Specific actionable step. If code, show example]
+**Effort:** [15 min / 30 min / 1 hr / 2-4 hrs / 1 day]
+**Priority:** [🔴 Fix this week / 🟡 Fix this month / 🟢 Fix when you can]
+
+### 1.2 ...
+### 1.3 ...
 
 ---
 
-## 3. CRO Recommendations
+## 2. SEO Problems (3-5 items)
 
-Same format as above. List at least 3 CRO issues covering:
-- CTA button text and placement
-- Social proof elements
-- Form design
-- Value proposition clarity
-- Trust signals
+Use the REAL HTML HEAD DATA above as ground truth. Do NOT guess.
+
+### 2.1 [Severity] — [Issue Title]
+**Current state:** [Show actual value from HTML head data, e.g. title tag = "Home Page"]
+**Problem:** [Why this hurts SEO]
+**Fix:** [Specific new text, e.g. change title to "RoastAudit — AI Website Audit Tool | $0.99"]
+**Effort:** [...]
+**Priority:** [...]
+
+### 2.2 Title tag optimization
+### 2.3 Meta description
+### 2.4 Heading structure (H1 count, hierarchy)
+### 2.5 Image alt tags (check 2-3 images)
+### 2.6 Canonical URL
+
+---
+
+## 3. CRO Recommendations (3-5 items)
+
+### 3.1 [Severity] — [Issue Title]
+**What's missing:** [...]
+**Impact:** [How much revenue/leads are lost]
+**Fix:** [Specific CTA text, placement, or design change]
+**Effort:** [...]
+**Priority:** [...]
+
+Topics to cover: CTA clarity, social proof, form friction, value proposition, trust signals.
 
 ---
 
 ## Priority Action Plan
 
-### Week 1 (Critical):
-1. [List top 3 critical fixes]
+### 🔴 This week (Critical):
+1. [Fix 1]
+2. [Fix 2]
 
-### Week 2 (Major):
-1. [List major fixes]
+### 🟡 This month (Important):
+1. [Fix 3]
+2. [Fix 4]
+
+### 🟢 Later (Nice to have):
+1. [Fix 5]
 
 ---
 
-**Important:** Make recommendations specific and actionable. Include code examples. Don't give generic advice like "improve SEO" — be specific about what to change and how. Use the REAL HTML HEAD DATA when discussing SEO issues.`;
+FORMATTING RULES:
+- Use Markdown tables for comparison data
+- Use numbered lists for action plans
+- No emojis in body text (only ✅⚠️❌🔴🟡🟢 in status columns)
+- Keep each issue to 5-7 lines max
+- Be specific: say "change title tag to X" not "improve title tag"
+- Use the REAL HTML HEAD DATA values, not guesswork`;
 
     const completion = await openai.chat.completions.create({
       model: 'deepseek-chat',
