@@ -15,10 +15,14 @@ export async function fetchLighthouse(url) {
   }
   try {
     const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=performance`;
+    console.log(`[Lighthouse] Calling PSI for ${url}`);
     const res = await fetch(psiUrl, {
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(25000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[Lighthouse] PSI returned HTTP ${res.status} for ${url}`);
+      return null;
+    }
 
     const data = await res.json();
     const categories = data?.lighthouseResult?.categories;
@@ -34,7 +38,7 @@ export async function fetchLighthouse(url) {
       totalBlockingTime: audits['total-blocking-time']?.displayValue || 'N/A',
     };
   } catch (err) {
-    console.warn('Lighthouse fetch failed:', err.message);
+    console.warn(`[Lighthouse] Failed for ${url}: ${err.message}`);
     return null;
   }
 }
