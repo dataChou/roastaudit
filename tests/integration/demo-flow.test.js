@@ -12,11 +12,32 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert';
 
-const BASE_URL = process.env.BASE_URL || process.env.VERCEL_URL || 'https://roastaudit.vercel.app';
+const DEFAULT_BASE = 'https://roastaudit.vercel.app';
+
+// Auto-detect: prefer localhost if test-server is running locally
+async function detectBaseUrl() {
+  if (process.env.BASE_URL) return process.env.BASE_URL;
+  if (process.env.VERCEL_URL) return 'https://' + process.env.VERCEL_URL;
+
+  // Probe localhost:3000 (give test-server 2s to start)
+  try {
+    const res = await fetch('http://localhost:3000/', { signal: AbortSignal.timeout(2000) });
+    if (res.ok || res.status === 404) {
+      console.log('  ✓ Local test-server detected at localhost:3000');
+      return 'http://localhost:3000';
+    }
+  } catch (e) { /* ignore, try default */ }
+
+  console.log(`  ℹ Local server not detected, using remote: ${DEFAULT_BASE}`);
+  return DEFAULT_BASE;
+}
+
+let BASE_URL = null;
 let reportId = null;
 let lighthouseData = null;
 
 before(async () => {
+  BASE_URL = await detectBaseUrl();
   console.log(`\n=== Layer 3 E2E: testing ${BASE_URL} ===\n`);
 
   // Health check: verify BASE_URL is reachable (30s timeout for slow proxies)
@@ -114,11 +135,8 @@ test('Gate 3.5 verification: Lighthouse data persisted in full report', async ()
   }
 
   // Re-fetch via /api/report to confirm Lighthouse data is in stored report
-  const res = await fetch(`${BASE_URL}/api/report?reportId=${reportId}`);
-  if (!res.ok) {
-    console.log('  ⚠ Could not re-fetch (no GET endpoint? check api/report.js)');
-    return;
-  }
+  const res = await fetch(`${BASE_URL}/api/report?id=${reportId}`);
+  assert.ok(res.ok, `Gate 3.5: GET /api/report failed: ${res.status}`);
 
   const data = await res.json();
   assert.ok(data.paid, 'Report should be paid after checkout');

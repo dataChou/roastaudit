@@ -4,11 +4,6 @@ import { fetchLighthouse } from './_lib/lighthouse.js';
 import { fetchHtmlHead } from './_lib/html-head.js';
 import { isDemoMode, generateDemoReport, generateDemoFullReport, putDemoReport } from './_lib/demo-mode.js';
 
-const openai = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com',
-});
-
 // Upstash Redis REST helper
 async function upstash(command, args = []) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -88,6 +83,12 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Lazy-init OpenAI (only when not in demo mode)
+    const openai = new OpenAI({
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      baseURL: 'https://api.deepseek.com',
+    });
+
     // ====== Step 1-3: Parallel data fetch (Gate 3.5: +Lighthouse +HTML head) ======
     const [jinaResult, lighthouseResult, htmlHeadResult] = await Promise.allSettled([
       // (1) Jina Reader: Markdown
