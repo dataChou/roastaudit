@@ -1,4 +1,5 @@
-// GET /api/report?id=xxx — Get report data (Upstash)
+// GET /api/report?id=xxx — Get report data (Upstash + demo memory store fallback)
+import { readDemoReport } from './_lib/demo-mode.js';
 
 async function upstash(command, args = []) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -31,6 +32,31 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Try demo memory store first
+    if (reportId.startsWith('demo-')) {
+      const parsed = readDemoReport(reportId);
+      if (!parsed) {
+        return res.status(404).json({ error: 'Report not found (demo store)' });
+      }
+
+      const response = {
+        reportId,
+        url: parsed.url,
+        paid: parsed.paid || false,
+        summary: parsed.summary,
+        screenshotUrl: parsed.screenshotUrl || null,
+        htmlHead: parsed.htmlHead,
+        lighthouse: parsed.lighthouse,
+      };
+
+      if (parsed.paid) {
+        response.fullReport = parsed.fullReport;
+      }
+
+      return res.status(200).json(response);
+    }
+
+    // Fallback: Upstash
     const result = await upstash('GET', [`report:${reportId}`]);
 
     if (!result || result.error || !result.result) {

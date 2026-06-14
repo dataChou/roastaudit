@@ -1,5 +1,6 @@
 // POST /api/checkout — Demo mode: unlock report without real payment
-import OpenAI from 'openai';
+// Also supports real Upstash storage when env vars present.
+import { readDemoReport, markDemoReportPaid } from './_lib/demo-mode.js';
 
 // Upstash Redis REST helper
 async function upstash(command, args = []) {
@@ -31,7 +32,21 @@ export default async function handler(req, res) {
   if (!reportId) return res.status(400).json({ error: 'Missing reportId' });
 
   try {
-    // DEMO MODE: mark report as paid directly (no real payment)
+    // Try demo memory store first (always works in demo mode)
+    if (reportId.startsWith('demo-')) {
+      const updated = markDemoReportPaid(reportId);
+      if (!updated) {
+        return res.status(404).json({ error: 'Report not found (demo store)' });
+      }
+      console.log(`[DEMO] Unlocked report ${reportId} in memory store`);
+      return res.status(200).json({
+        success: true,
+        unlocked: true,
+        reportId,
+      });
+    }
+
+    // Fallback: Upstash (for real audit reports with non-demo IDs)
     const result = await upstash('GET', [`report:${reportId}`]);
     if (!result || result.error || !result.result) {
       return res.status(404).json({ error: 'Report not found' });

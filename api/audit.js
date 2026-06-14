@@ -2,7 +2,7 @@
 import OpenAI from 'openai';
 import { fetchLighthouse } from './_lib/lighthouse.js';
 import { fetchHtmlHead } from './_lib/html-head.js';
-import { isDemoMode, generateDemoReport } from './_lib/demo-mode.js';
+import { isDemoMode, generateDemoReport, generateDemoFullReport, putDemoReport } from './_lib/demo-mode.js';
 
 const openai = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
@@ -63,8 +63,21 @@ export default async function handler(req, res) {
     const data = generateDemoReport(url);
     console.log(`[DEMO] Serving mock report for ${url} (id: ${data.reportId})`);
 
-    // Optional: store mock report in Upstash (best-effort, don't block on failure)
-    try { await storeReport(data.reportId, { ...data, url, paid: false, createdAt: new Date().toISOString() }); } catch (e) { console.error('Demo Upstash store failed:', e); }
+    // Store full demo report in memory store (for checkout + report-pdf to read)
+    const domain = url.replace(/https?:\/\//, '').replace(/\/.*/, '');
+    putDemoReport(data.reportId, {
+      url,
+      domain,
+      summary: data.summary,
+      fullReport: generateDemoFullReport(domain, url),
+      htmlHead: data.htmlHead,
+      lighthouse: data.lighthouse,
+      createdAt: new Date().toISOString(),
+      paid: false,
+    });
+
+    // Best-effort: also store in Upstash (won't fail demo mode if missing)
+    try { await storeReport(data.reportId, { url, summary: data.summary, paid: false, createdAt: new Date().toISOString() }); } catch (e) { console.warn('Demo Upstash store skipped:', e.message); }
 
     return res.status(200).json({
       reportId: data.reportId,

@@ -19,10 +19,10 @@ let lighthouseData = null;
 before(async () => {
   console.log(`\n=== Layer 3 E2E: testing ${BASE_URL} ===\n`);
 
-  // Health check: verify BASE_URL is reachable (5s timeout)
+  // Health check: verify BASE_URL is reachable (30s timeout for slow proxies)
   try {
     const res = await fetch(BASE_URL + '/', {
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(30000)
     });
     if (!res.ok) {
       assert.fail('BASE_URL unreachable: ' + BASE_URL + ', status: ' + res.status);

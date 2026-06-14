@@ -1,5 +1,6 @@
 // api/_lib/demo-mode.js — Demo mode: auto-detect missing DEEPSEEK_API_KEY, return mock data
 // Spec-002 (2026-06-14) — 方案 A: 自动检测 + 生产硬拒绝
+// Verdict-003 fix (2026-06-14) — 加内存存储供 demo 模式共享数据
 
 /**
  * Returns true when DEEPSEEK_API_KEY is unset, empty, or "dummy".
@@ -7,6 +8,47 @@
  */
 export function isDemoMode() {
   return !process.env.DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY === 'dummy';
+}
+
+/**
+ * In-memory report store for demo mode (no Upstash required).
+ * Uses globalThis to survive Vercel cold starts in same instance.
+ * Format: { [reportId]: { url, summary, fullReport, htmlHead, lighthouse, paid, createdAt } }
+ */
+function getStore() {
+  if (!globalThis.__demoReportStore) {
+    globalThis.__demoReportStore = {};
+  }
+  return globalThis.__demoReportStore;
+}
+
+/**
+ * Save a report to the in-memory demo store.
+ */
+export function putDemoReport(reportId, data) {
+  const store = getStore();
+  store[reportId] = data;
+}
+
+/**
+ * Read a report from the in-memory demo store.
+ * Returns null if not found.
+ */
+export function readDemoReport(reportId) {
+  const store = getStore();
+  return store[reportId] || null;
+}
+
+/**
+ * Mark a report as paid in the in-memory demo store.
+ */
+export function markDemoReportPaid(reportId) {
+  const store = getStore();
+  if (store[reportId]) {
+    store[reportId].paid = true;
+    return store[reportId];
+  }
+  return null;
 }
 
 /**
@@ -38,6 +80,167 @@ export function generateDemoReport(url) {
       h1: 'Welcome to Demo Website',
     },
   };
+}
+
+/**
+ * Generate a long-form mock full report (used for unlocked PDF).
+ */
+export function generateDemoFullReport(domain, url) {
+  return `# Audit Report for ${domain}
+
+## Overall Score: 72/100
+
+## Performance (from Lighthouse)
+- Performance Score: 85/100
+- FCP: 1.6 s
+- LCP: 2.8 s
+- CLS: 0.06
+- TBT: 180 ms
+- One-line takeaway: Optimize LCP by lazy-loading hero images and preloading critical CSS.
+
+---
+
+## 1. UX Issues
+
+### Critical: Missing meta description
+**Severity:** Critical
+**Description:** No meta description tag detected in the HTML head. Search engines will auto-generate snippets, which often misrepresent page content and lower click-through rates.
+**Recommendation:** Add a unique, compelling 150-160 character description including the primary keyword and a soft call-to-action.
+
+<meta name="description" content="RoastAudit gives you instant AI-powered UX, SEO, and CRO audits for $0.99. No login. Actionable fixes in 60 seconds.">
+**Effort:** 15 minutes
+**Priority:** Fix immediately
+
+### Major: Slow Largest Contentful Paint
+**Severity:** Major
+**Description:** LCP of 2.8 s exceeds Google's 2.5 s threshold for "good" performance. The hero image is the likely culprit, served as a high-resolution JPEG without lazy loading.
+**Recommendation:** Convert the hero image to WebP, serve it via a CDN, and add \`loading="lazy"\` for below-the-fold images.
+
+<img src="hero.webp" loading="eager" fetchpriority="high" alt="RoastAudit dashboard preview" width="1200" height="630">
+**Effort:** 30 minutes
+**Priority:** Fix within 1 week
+
+### Major: Low-contrast CTA buttons
+**Severity:** Major
+**Description:** Primary call-to-action buttons use a low-contrast color combination (light blue on white) that fails WCAG AA standards. Users with mild visual impairments may struggle to locate the conversion path.
+**Recommendation:** Increase contrast to a 4.5:1 ratio. Test with the WebAIM contrast checker.
+
+<a href="/audit" class="bg-blue-700 text-white px-6 py-3">Audit Now</a>
+**Effort:** 15 minutes
+**Priority:** Fix immediately
+
+### Minor: No breadcrumb navigation
+**Severity:** Minor
+**Description:** Multi-page sections lack breadcrumb navigation, making it harder for users to understand their location within the site hierarchy.
+**Recommendation:** Add structured breadcrumb markup with schema.org BreadcrumbList.
+
+**Effort:** 1 hour
+**Priority:** Fix when convenient
+
+---
+
+## 2. SEO Problems
+
+### Major: Title tag exceeds 60 characters
+**Severity:** Major
+**Description:** Page title is 78 characters long, which gets truncated in search engine results pages (SERPs) around the 60-character mark.
+**Recommendation:** Shorten to under 60 characters while preserving the primary keyword.
+
+<title>RoastAudit — AI Website Audit Tool</title>
+**Effort:** 15 minutes
+**Priority:** Fix within 1 week
+
+### Critical: Missing canonical URL
+**Severity:** Critical
+**Description:** No canonical link tag found. This can lead to duplicate content issues if the same page is accessible via multiple URLs (e.g., with and without trailing slashes, or via tracking parameters).
+**Recommendation:** Add a self-referential canonical tag.
+
+<link rel="canonical" href="${url}">
+**Effort:** 15 minutes
+**Priority:** Fix immediately
+
+### Major: H1 not optimized for primary keyword
+**Severity:** Major
+**Description:** The H1 reads "Welcome to Demo Website" which contains no targeted keyword. The page is about AI website audits, but the H1 doesn't reinforce that.
+**Recommendation:** Revise the H1 to include the primary keyword naturally.
+
+<h1>AI Website Audit Tool — Instant UX, SEO & CRO Analysis</h1>
+**Effort:** 15 minutes
+**Priority:** Fix within 1 week
+
+### Minor: Images missing alt text
+**Severity:** Minor
+**Description:** Sampled 3 visible images; 2 are missing alt attributes. This hurts both accessibility and image search ranking.
+**Recommendation:** Add descriptive alt text to all meaningful images.
+
+<img src="dashboard.webp" alt="RoastAudit dashboard showing Lighthouse scores" width="1200" height="630">
+**Effort:** 30 minutes
+**Priority:** Fix within 1 week
+
+---
+
+## 3. CRO Recommendations
+
+### Major: Single CTA above the fold
+**Severity:** Major
+**Description:** Only one call-to-action is visible above the fold, and it's a generic "Learn more" link. Users don't see a clear conversion path tied to value.
+**Recommendation:** Replace with a value-driven CTA in a high-contrast color.
+
+<a href="/audit" class="bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold">Get Your $0.99 Audit Now</a>
+**Effort:** 15 minutes
+**Priority:** Fix immediately
+
+### Critical: No social proof
+**Severity:** Critical
+**Description:** Page contains zero social proof elements (no testimonials, no user counts, no logos, no press mentions). New visitors have no signal that the product is trusted.
+**Recommendation:** Add a testimonial carousel and a "Trusted by X+ users" badge near the hero CTA.
+
+**Effort:** 2-4 hours
+**Priority:** Fix within 1 week
+
+### Major: Weak value proposition
+**Severity:** Major
+**Description:** The headline "AI-Powered Website Audit" is generic. It doesn't tell visitors what they'll get or why it's better than alternatives.
+**Recommendation:** Rewrite with a benefit-driven, specific promise.
+
+<h1>Find UX, SEO & CRO Issues in 60 Seconds — For $0.99</h1>
+**Effort:** 30 minutes
+**Priority:** Fix within 1 week
+
+### Minor: Form has too many fields
+**Severity:** Minor
+**Description:** The contact form asks for name, email, company size, and use case before showing any value. This creates friction for first-time visitors.
+**Recommendation:** Reduce to a single email field with a clear value proposition above it.
+
+**Effort:** 1 hour
+**Priority:** Fix when convenient
+
+---
+
+## Priority Action Plan
+
+### Week 1 (Critical):
+1. Add meta description (15 min)
+2. Add canonical URL (15 min)
+3. Replace "Learn more" CTA with value-driven button (15 min)
+4. Add social proof section above the fold (2-4 hours)
+
+### Week 2 (Major):
+1. Optimize hero image for LCP (30 min)
+2. Increase CTA button contrast (15 min)
+3. Shorten title tag to under 60 characters (15 min)
+4. Revise H1 to include primary keyword (15 min)
+5. Add alt text to all images (30 min)
+6. Rewrite value proposition headline (30 min)
+
+### Later (Minor):
+1. Add breadcrumb navigation (1 hour)
+2. Simplify contact form (1 hour)
+
+---
+
+**Generated by RoastAudit — Demo Mode.** This is a simulated report. Run a real audit at roastaudit.com for live data.
+`;
 }
 
 function generateDemoSummary(domain) {
